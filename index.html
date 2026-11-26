@@ -138,6 +138,13 @@ input.good{border-color:var(--ok)}input.bad{border-color:var(--red)}
 .big{font-family:var(--mono);font-size:clamp(48px,9vw,84px);color:var(--haz);line-height:1;margin:8px 0}
 .rules{padding-left:1.2em;margin:0 0 18px}
 .rules li{margin-bottom:6px}
+.missions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.mission{text-align:left;padding:14px;border:2px solid var(--line);background:var(--p2);min-height:110px;display:grid;align-content:start;gap:6px}
+.mission b{font-family:var(--st);font-size:26px;font-weight:900;line-height:1}
+.mission span{color:var(--dim);font-size:15px;line-height:1.35}
+.mission:hover{border-color:var(--haz)}
+.mission.on{border-color:var(--haz);background:#3a3112}
+@media(max-width:600px){.missions{grid-template-columns:minmax(0,1fr)}}
 .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .stat{background:var(--p2);padding:12px 14px}
 .stat b{display:block;font-family:var(--mono);font-size:28px;color:var(--haz)}
@@ -161,15 +168,15 @@ input.good{border-color:var(--ok)}input.bad{border-color:var(--red)}
 <script>
 {
 const $=s=>document.querySelector(s);
-const KEY='lastexit-v2';
+const KEY='lastexit-v3';
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const norm=s=>String(s).toLowerCase().replace(/[’']/g,'').replace(/[^a-z0-9 ]/g,' ').replace(/\b(a|an|the)\b/g,' ').replace(/\s+/g,' ').trim();
 const num=v=>{v=String(v).replace(/[£,\s]/g,'');return v===''?NaN:Number(v)};
 
 /* ---------- CONTENT ---------- */
-const ROOMS=[
+const ROOMS_MIXED=[
 {name:'The Security System',short:'Security System',
- intro:'Red lights flood the corridor. The main security terminal has crashed and the first lock is sealed. Get the power back, then crack the technician’s note.',
+ intro:'Red lights flood the corridor. The main security terminal has crashed and the first lock is sealed. Get the system back online to begin your escape.',
  stages:[
  {t:'multi',subj:'Maths',title:'Restore the power',prompt:'Three fuses have blown. Each one is labelled with a percentage problem. Solve all three to bring the terminal back online.',
   fields:[['Fuse 1: 10% of 240',24],['Fuse 2: 25% of 60',15],['Fuse 3: 15% of 80',12]],
@@ -183,7 +190,7 @@ const ROOMS=[
   hint:'There are 4 mistakes. Check: how a sentence must start; “system” is singular; Their / There; a missing apostrophe.',ans:'the→The, have→has, Their→There, couldnt→couldn’t'}
  ]},
 {name:'The Mystery Room',short:'Mystery Room',
- intro:'A door hisses open onto a dim room. On a steel table sit three objects, covered by a sheet. Only one of them will open the next lock.',
+ intro:'A door hisses open onto a dim room. A clock has stopped on the wall above a steel table scratched with puzzles. Something in here will open the next lock.',
  stages:[
  {t:'text',subj:'Logic',title:'Three riddles',prompt:'Solve each riddle to name the three hidden objects.',
   fields:[['Riddle A','I have hands but cannot clap. I have a face but cannot smile. I tell you something, but I never speak.',['clock','watch','wall clock','alarm clock','wristwatch']],
@@ -192,7 +199,7 @@ const ROOMS=[
   hint:'A: you check it to know when lessons end. B: you look in it before leaving the house. C: you are probably typing near one right now.',ans:'clock, mirror, keyboard'},
  {t:'num',subj:'Logic',title:'The keypad lock',prompt:'A message flickers on the keypad: “Count the letters in the answer to Riddle C.” That number is code fragment 2.',a:8,code:true,
   hint:'Spell out the answer to Riddle C and count every letter.',ans:'KEYBOARD = 8 letters  →  code 8'},
- {t:'odd',subj:'English',title:'Word association',prompt:'The sheet is lifted. Four rows of words are etched into the table. Choose the word that does NOT belong in each group. The supervisor may ask you to explain why.',
+ {t:'odd',subj:'English',title:'Word association',prompt:'Four rows of words are etched into the table. Choose the word that does NOT belong in each group. The supervisor may ask you to explain why.',
   groups:[[['Their','There','They’re','Because'],3],[['Necessary','Essential','Important','Unnecessary'],3],[['Quickly','Slowly','Carefully','Beautiful'],3],[['Although','However','Because','Table'],3]],
   hint:'Row 1: three of them sound the same. Row 2: one means the opposite. Row 3: three describe how something is done (adverbs). Row 4: three are connectives.',ans:'Because, Unnecessary, Beautiful, Table'},
  {t:'cipher',subj:'Logic',title:'The note behind the clock',
@@ -214,7 +221,7 @@ const ROOMS=[
   hint:'They’re = they are. You’re = you are. Their / your = belonging to. There = a place.',ans:'They’re, their, there, You’re, your'}
  ]},
 {name:'The Final Transport',short:'Final Transport',
- intro:'Behind the guard room is a shuttle platform. An emergency transport can take you out, but the ticket machine’s price list is damaged.',
+ intro:'Behind the guard room is a shuttle platform. An emergency transport can take you out, but the ticket machine has been damaged.',
  stages:[
  {t:'mcq',subj:'Maths',title:'Damaged price list',note:['ADULT = CHILD + £4','3 ADULTS + 2 CHILDREN = £52'],
   prompt:'Let the cost of a child ticket be x. Which equation matches the recovered information?',
@@ -244,11 +251,93 @@ const ROOMS=[
   hint:'Start with “The freedom…”. It is a statement, not a question.',ans:'The freedom to escape is yours now.  (or “Now the freedom to escape is yours.”)'}
  ]}
 ];
-const CODES=[68,8,6,12,16];
+const MIXED=ROOMS_MIXED;
+const CF=['Correct','Wrong'];
+const S_MATHS=[
+ [MIXED[0].stages[0],MIXED[0].stages[1],
+  {t:'num',subj:'Maths',title:'Repair costs',prompt:'A repair to the terminal cost £40. The price has gone up by 15%. What is the new price?',pre:'£',a:46,
+   hint:'10% of £40 is £4 and 5% is £2, so 15% is £6. Add it on.',ans:'£40 + £6 = £46'},
+  {t:'mcq',subj:'Maths',title:'Matching circuits',prompt:'Each wire joins a value to its percentage. Choose the right percentage for each one to complete the circuit.',
+   items:[['0.25',['2.5%','25%','0.25%'],1],['3/5',['35%','60%','53%'],1],['0.7',['7%','70%','0.7%'],1],['1/8',['12.5%','18%','8%'],0]],
+   hint:'To turn a decimal into a percentage, multiply by 100. For a fraction, divide the top by the bottom first (3 ÷ 5 = 0.6).',ans:'25%, 60%, 70%, 12.5%'}],
+ [{t:'text',subj:'Maths',title:'Number riddles',prompt:'Three number riddles are scratched into the table. Solve each one.',ph:'Number',
+   fields:[['Riddle A','I am a two-digit prime number less than 30. My digits add up to 10.',['19']],['Riddle B','I am a square number between 30 and 60, and I am even.',['36']],['Riddle C','I am the next number in the sequence 3, 7, 11, 15, …',['19']]],
+   hint:'A: list the primes from 11 to 29 and add their digits. B: 6 × 6 and 7 × 7 are in range. C: the sequence goes up by 4 each time.',ans:'19, 36, 19'},
+  {t:'num',subj:'Maths',title:'The frozen clock',prompt:'The clock on the wall has stopped at exactly 3 o’clock. What is the angle between the hour hand and the minute hand, in degrees? That number is code fragment 2.',a:90,code:true,
+   hint:'A full turn is 360°. There are 12 numbers on a clock, so each gap between numbers is 30°.',ans:'3 gaps × 30° = 90°  →  code 90'},
+  {t:'num',subj:'Maths',title:'Sequence lock',prompt:'The next keypad shows the rule for a sequence: 4n − 1. What is the 10th term?',a:39,
+   hint:'Put n = 10 into the rule: 4 × 10, then subtract 1.',ans:'4 × 10 − 1 = 39'},
+  {t:'text',subj:'Maths',title:'The note behind the clock',note:['16 10 2 8 · 40 30','40 16 10 · 14 42 2 36 8 · 36 30 30 26'],
+   prompt:'Taped to the back of the clock is a note in numbers. Each number is double a letter’s position in the alphabet (A = 1, B = 2, C = 3…). Halve each number, decode the message, then answer: where must you go next?',ph:'Destination',
+   fields:[['Where must you go next?','',['guard room','guardroom','guards room','head to guard room','head to guardroom']]],
+   hint:'Halve first: 16 → 8. The 8th letter is H. The first word is HEAD.',ans:'HEAD TO THE GUARD ROOM  →  “guard room”'}],
+ [{t:'mcq',subj:'Maths',title:'The guard’s working',prompt:'The guard was checking calculations when the alarm went off. Mark each line as correct or wrong. The number of wrong lines is your next code.',
+   items:[['7 × 8 = 56',CF,0],['3 + 4 × 2 = 14',CF,1],['0.5 × 0.5 = 0.25',CF,0],['25% of 80 = 25',CF,1],['2³ = 6',CF,1],['3/4 = 0.75',CF,0],['−3 − 5 = −2',CF,1],['√81 = 9',CF,0]],
+   hint:'Check the order of operations (BIDMAS), what a power means (2³ = 2 × 2 × 2) and how to subtract with negatives.',ans:'Wrong: 3 + 4 × 2 (=11), 25% of 80 (=20), 2³ (=8), −3 − 5 (=−8)'},
+  {t:'num',subj:'Maths',title:'Count the errors',prompt:'How many of the guard’s lines were wrong? That number is code fragment 3.',a:4,code:true,
+   hint:'Count the lines you marked as wrong in the last challenge.',ans:'4  →  code 4'},
+  {t:'num',subj:'Maths',title:'Shift passes',prompt:'The guard shares 45 security passes between the day shift and the night shift in the ratio 2 : 3. How many passes does the night shift get?',a:27,
+   hint:'2 + 3 = 5 parts. 45 ÷ 5 = 9 passes per part. The night shift gets 3 parts.',ans:'45 ÷ 5 = 9, 9 × 3 = 27'},
+  {t:'num',subj:'Maths',title:'Torch supplies',prompt:'4 torches cost £10. How much would 7 torches cost?',pre:'£',a:17.5,
+   hint:'Find the cost of 1 torch first (£10 ÷ 4), then multiply by 7.',ans:'£2.50 × 7 = £17.50'}],
+ [MIXED[3].stages[0],MIXED[3].stages[1],MIXED[3].stages[2],MIXED[3].stages[4],
+  {t:'num',subj:'Maths',title:'Shuttle fare',prompt:'The shuttle fare is worked out with the formula C = 2.5d + 3, where d is the distance in km. The exit is 6 km away. What is the fare?',pre:'£',a:18,
+   hint:'Replace d with 6: 2.5 × 6 first, then add 3.',ans:'2.5 × 6 + 3 = £18'}],
+ [MIXED[4].stages[0],MIXED[4].stages[1],
+  {t:'num',subj:'Maths',title:'The control panel',note:['PANEL: 12 cm × 7 cm','KEYPAD HOLE: 3 cm × 3 cm'],prompt:'The control panel is a rectangle with a square hole cut out for the keypad. What area of panel is left, in cm²?',a:75,
+   hint:'Area of a rectangle = length × width. Work out the panel, then take away the hole.',ans:'84 − 9 = 75 cm²'},
+  {t:'text',subj:'Maths',title:'Keycard drawer',prompt:'A drawer holds 3 red, 5 blue and 2 green keycards. You pick one without looking. What is the probability that it is blue? Give your answer as a fraction in its simplest form.',ph:'e.g. 2/7',
+   fields:[['Probability of blue','',['1/2','5/10','0.5','50%','1 in 2']]],
+   hint:'Probability = number of blue cards ÷ total number of cards. Then simplify.',ans:'5/10 = 1/2'}]
+];
+const S_ENG=[
+ [{t:'mcq',subj:'English',title:'Restore the power',prompt:'The terminal will only reboot if you can identify each type of sentence.',
+   items:[['Get out of the building now!',['Statement','Question','Command','Exclamation'],2],['Is anyone still in the control room?',['Statement','Question','Command','Exclamation'],1],['The emergency lights flickered on.',['Statement','Question','Command','Exclamation'],0],['What a terrifying night this is!',['Statement','Question','Command','Exclamation'],3]],
+   hint:'A command tells someone to do something. An exclamation shows strong feeling and often starts with “What” or “How”.',ans:'Command, Question, Statement, Exclamation'},
+  MIXED[0].stages[2],
+  {t:'num',subj:'English',title:'Error count',prompt:'How many mistakes did you correct in the guard’s computer message? That number is code fragment 1.',a:4,code:true,
+   hint:'Count each word you changed in the last challenge.',ans:'4  →  code 4'},
+  {t:'mcq',subj:'English',title:'Password vocabulary',prompt:'The next password is hidden among synonyms. Choose the word closest in meaning to each word in capitals.',
+   items:[['SEALED',['opened','closed','broken','painted'],1],['URGENT',['pressing','boring','slow','optional'],0],['ABANDONED',['crowded','deserted','repaired','noisy'],1],['CAUTIOUS',['careless','careful','quick','loud'],1]],
+   hint:'Try each option in a sentence: “The doors were ___.” Which one keeps the meaning?',ans:'closed, pressing, deserted, careful'}],
+ MIXED[1].stages,
+ [...MIXED[2].stages,
+  {t:'mcq',subj:'English',title:'Apostrophe alarm',prompt:'The alarm will only stop when every apostrophe is in the right place. Choose the correct word for each gap.',
+   items:[['The ___ torch was still switched on. (one guard)',['guards','guard’s','guards’'],1],['The two ___ radios were missing. (two guards)',['guard’s','guards','guards’'],2],['The ___ coats hung by the door.',['childrens’','children’s','childrens'],1],['___ nearly time to leave.',['Its','It’s','Its’'],1]],
+   hint:'One owner: ’s. More than one owner ending in s: s’. “It’s” always means “it is”.',ans:'guard’s, guards’, children’s, It’s'}],
+ [{t:'mcq',subj:'English',title:'Platform graffiti',prompt:'Graffiti on the platform wall uses language techniques. Name the technique in each line.',
+   items:[['The doors groaned in the darkness.',['Simile','Metaphor','Personification','Alliteration','Onomatopoeia'],2],['The tunnel was as cold as ice.',['Simile','Metaphor','Personification','Alliteration','Onomatopoeia'],0],['Bang! Crash! The shutters slammed.',['Simile','Metaphor','Personification','Alliteration','Onomatopoeia'],4],['Silent, still and sinister.',['Simile','Metaphor','Personification','Alliteration','Onomatopoeia'],3],['The platform was a frozen graveyard.',['Simile','Metaphor','Personification','Alliteration','Onomatopoeia'],1]],
+   hint:'Simile uses “like” or “as”. Metaphor says something IS something else. Personification gives an object human actions.',ans:'Personification, Simile, Onomatopoeia, Alliteration, Metaphor'},
+  {t:'mcq',subj:'English',title:'Broken connections',prompt:'The ticket machine’s instructions are missing their connectives. Choose the best one for each gap.',
+   items:[['The shuttle was late ___ the power had failed.',['because','however','although'],0],['The doors were locked; ___, the window was open.',['because','however','so'],1],['___ the lights were out, the group kept moving.',['Because','Although','Therefore'],1],['The alarm sounded, ___ everyone ran to the platform.',['so','unless','although'],0]],
+   hint:'“Because” gives a reason. “However” and “although” show a contrast. “So” shows a result.',ans:'because, however, Although, so'},
+  MIXED[3].stages[3],
+  {t:'num',subj:'English',title:'Ticket machine password',prompt:'The machine asks: how many syllables are in the word UNBELIEVABLE? That number is code fragment 4.',a:5,code:true,
+   hint:'Clap it out slowly: un – be – …',ans:'un-be-liev-a-ble = 5  →  code 5'}],
+ [{t:'mcq',subj:'English',title:'Fact or opinion?',prompt:'The control screens show five statements. Decide whether each one is a fact or an opinion. The number of opinions is your final code.',
+   items:[['The facility has five digital locks.',['Fact','Opinion'],0],['The control room is the scariest place in the building.',['Fact','Opinion'],1],['The lockdown began at 9:15 am.',['Fact','Opinion'],0],['Escape rooms are the best way to learn.',['Fact','Opinion'],1],['The exit is behind the blast door.',['Fact','Opinion'],0]],
+   hint:'A fact can be checked and proved. An opinion is what someone thinks or feels, and people could disagree.',ans:'Fact, Opinion, Fact, Opinion, Fact'},
+  {t:'num',subj:'English',title:'Count the opinions',prompt:'How many of the five statements were opinions? That number is code fragment 5.',a:2,code:true,
+   hint:'Count the statements you marked as opinions.',ans:'2  →  code 2'},
+  {t:'mcq',subj:'English',title:'Reading between the lines',note:['Mia’s hands trembled as she typed the final code.','She glanced at the clock, then at the door,','and held her breath.'],
+   prompt:'A security camera caught this moment. Read it carefully and answer both questions.',
+   items:[['How is Mia feeling?',['Bored','Nervous','Angry','Relaxed'],1],['Which phrase best shows this?',['typed the final code','glanced at the clock','her hands trembled','then at the door'],2]],
+   hint:'Think about what your body does when you are worried about something.',ans:'Nervous; “her hands trembled”'},
+  MIXED[4].stages[2]]
+];
+const META=MIXED.map(r=>({name:r.name,short:r.short,intro:r.intro}));
+const TRACKS={
+ mixed:{label:'Mixed mission',desc:'The original: maths and English challenges in every room.',rooms:MIXED,codes:[68,8,6,12,16]},
+ maths:{label:'Maths mission',desc:'Percentages, number, ratio, algebra, area, probability and averages.',rooms:META.map((m,i)=>({...m,stages:S_MATHS[i]})),codes:[68,90,4,12,16]},
+ english:{label:'English mission',desc:'Proofreading, SPaG, vocabulary, language techniques, inference and riddles.',rooms:META.map((m,i)=>({...m,stages:S_ENG[i]})),codes:[4,8,6,5,2]}};
+let ROOMS=MIXED,CODES=TRACKS.mixed.codes;
+const setTrack=t=>{ROOMS=TRACKS[t].rooms;CODES=TRACKS[t].codes};
+
 
 /* ---------- STATE ---------- */
-const fresh=()=>({phase:'setup',team:'',mins:45,pin:'1234',sound:true,signoff:false,endAt:0,paused:false,remain:0,hints:3,hintsUsed:0,room:0,stage:0,codes:[],hinted:{},wrong:0,lockUntil:0,streak:0,timeupShown:false,doneRemain:0,roomDone:false,beeped:{}});
+const fresh=()=>({track:null,phase:'setup',team:'',mins:45,pin:'1234',sound:true,signoff:false,endAt:0,paused:false,remain:0,hints:3,hintsUsed:0,room:0,stage:0,codes:[],hinted:{},wrong:0,lockUntil:0,streak:0,timeupShown:false,doneRemain:0,roomDone:false,beeped:{}});
 let S;try{S=JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){S=fresh()}
+if(S.track)setTrack(S.track);
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 let ui={key:''},overlay=null,teacherOpen=false,logoTaps=0;
 const remaining=()=>S.phase==='escaped'?S.doneRemain:S.paused?S.remain:S.endAt-Date.now();
@@ -291,7 +380,7 @@ function render(){
  $('#app').innerHTML=`
  <header class="hud"><div class="hudrow">
   <button class="logo" data-act="logo" aria-label="The Last Exit"><span class="beacon"></span><h1>The Last Exit</h1></button>
-  <span class="team">${esc(S.team||'Team')}</span><span class="sp"></span>
+  <span class="team">${esc(S.team||'Team')} · ${S.track?TRACKS[S.track].label:''}</span><span class="sp"></span>
   <div class="chip" title="Team hints left">Hints <span class="dots">${[0,1,2].map(i=>`<i class="${i<S.hints?'':'used'}"></i>`).join('')}${S.hints>3?'+'+(S.hints-3):''}</span></div>
   <button class="iconbtn" data-act="sound" aria-label="Toggle sound">${S.sound?'Sound on':'Sound off'}</button>
   <div class="timer" id="timer">${fmt(remaining())}</div>
@@ -337,7 +426,7 @@ function restore(vals){for(const k in vals){const i=document.getElementById(k);i
 function bodyHTML(st){
  if(st.t==='num')return `<div class="field"><div class="inrow">${st.pre?`<span>${st.pre}</span>`:''}<input type="text" inputmode="decimal" id="a0" autocomplete="off" aria-label="Your answer" placeholder="Answer"></div></div>`;
  if(st.t==='multi')return `<div class="fields">${st.fields.map((f,i)=>`<div class="field"><label for="a${i}">${f[0]}</label><input type="text" inputmode="decimal" id="a${i}" autocomplete="off"></div>`).join('')}</div>`;
- if(st.t==='text')return `<div class="fields">${st.fields.map((f,i)=>`<div class="field"><label for="a${i}">${f[0]}</label><p class="q">“${f[1]}”</p><input type="text" id="a${i}" autocomplete="off" placeholder="What am I?"></div>`).join('')}</div>`;
+ if(st.t==='text')return `<div class="fields">${st.fields.map((f,i)=>`<div class="field"><label for="a${i}">${f[0]}</label>${f[1]?`<p class="q">“${f[1]}”</p>`:''}<input type="text" id="a${i}" autocomplete="off" placeholder="${st.ph||'What am I?'}"></div>`).join('')}</div>`;
  if(st.t==='fix'){
   const tk=tokens(st.text);
   let h=`<div class="msg">${tk.map((t,i)=>`<button class="w ${ui.fixed[i]?'fx':''} ${ui.sel===i?'sel':''}" data-act="word" data-i="${i}">${esc(ui.fixed[i]?t.ok:t.w)}</button>`).join(' ')}</div>`;
@@ -428,13 +517,15 @@ function showBrief(){
  <p>You have <b>${S.mins} minutes</b> to solve the challenges, discover the five lock codes and escape. Work together, think creatively and don’t assume every clue is as straightforward as it looks.</p>
  <h3 style="font-size:26px;margin:18px 0 8px">The rules</h3>
  <ul class="rules">
-  <li>Solve the maths and English challenges in each room. The terminal checks every answer before you move on.</li>
+  <li>Solve the challenges in each room. The terminal checks every answer before you move on.</li>
   <li>Each room unlocks a code. Write it in your workbook.</li>
   <li>Your team has <b>3 hints</b> for the whole game. Use them wisely.</li>
   <li>Wrong answers lock the terminal, and each mistake in a row locks it for longer.</li>
   <li>To escape, enter all five codes on the blast door, then prove to the supervisor how you cracked the system.</li>
  </ul>
- <div class="actions"><button class="btn" data-act="start">Begin lockdown</button></div>
+ <h3 style="font-size:26px;margin:18px 0 8px">Choose your mission</h3>
+ <div class="missions">${Object.entries(TRACKS).map(([k,t])=>`<button class="mission ${S.track===k?'on':''}" data-act="track" data-t="${k}"><b>${t.label}</b><span>${t.desc}</span></button>`).join('')}</div>
+ <div class="actions"><button class="btn" data-act="start" ${S.track?'':'disabled'}>${S.track?'Begin lockdown: '+TRACKS[S.track].label:'Choose a mission to begin'}</button></div>
  </div></div></div>`;
 }
 function renderOverlay(){
@@ -473,7 +564,7 @@ function teacherHTML(){
  const st=S.phase==='play'&&!S.roomDone?ROOMS[S.room].stages[S.stage]:null;
  $('#ov').innerHTML=`<div class="ov"><div class="card box"><div class="haz"></div><div class="in">
  <h2>Supervisor panel</h2>
- <p><b>${esc(S.team||'Team')}</b> · ${S.phase==='play'?`Room ${S.room+1}, stage ${S.stage+1}: ${st.title}`:S.phase}</p>
+ <p><b>${esc(S.team||'Team')}</b> · ${S.track?TRACKS[S.track].label:''} · ${S.phase==='play'?`Room ${S.room+1}, stage ${S.stage+1}: ${st.title}`:S.phase}</p>
  ${st?`<div class="hintbox"><b>Answer:</b> ${st.ans}</div>`:''}
  <p style="color:var(--dim)">Escape sequence: ${CODES.join(' · ')} · Wrong attempts: ${S.wrong} · Hints used: ${S.hintsUsed}</p>
  <div class="actions">
@@ -491,7 +582,7 @@ function escapedHTML(){
  return `<div class="ov"><div class="card box"><div class="haz"></div><div class="in">
  <div class="door2">${doorSVG([1,1,1,1,1])}</div>
  <h2>You escaped!</h2>
- <p><b>${esc(S.team||'Your team')}</b>: ${rank}.</p>
+ <p><b>${esc(S.team||'Your team')}</b>: ${rank} · ${TRACKS[S.track].label}.</p>
  <div class="grid2"><div class="stat">Time ${r>=0?'remaining':'over'}<b>${fmt(r).replace('+','')}</b></div><div class="stat">Hints used<b>${S.hintsUsed}</b></div><div class="stat">Wrong attempts<b>${S.wrong}</b></div><div class="stat">Escape sequence<b>${CODES.join('-')}</b></div></div>
  <h3 style="font-size:26px;margin:22px 0 8px">Prove you cracked the system</h3>
  <p>Take your workbook to the supervisor. Explain <b>at least one maths calculation</b> and <b>one English correction</b> to complete your escape.</p>
@@ -506,7 +597,8 @@ document.addEventListener('click',e=>{
  const st=S.phase==='play'&&!S.roomDone?ROOMS[S.room].stages[S.stage]:null;
  switch(a){
  case'setupgo':S.team=$('#s-team').value.trim();S.mins=Math.max(5,Math.min(90,parseInt($('#s-mins').value)||45));S.pin=$('#s-pin').value.trim()||'1234';S.signoff=$('#s-sign').checked;S.sound=$('#s-snd').checked;S.phase='brief';save();render();break;
- case'start':S.phase='play';S.endAt=Date.now()+S.mins*60000;S.hints=3;save();$('#ov').innerHTML='';sfx.alarm();render();break;
+ case'track':S.track=b.dataset.t;setTrack(S.track);save();showBrief();break;
+ case'start':if(!S.track)return;S.phase='play';S.endAt=Date.now()+S.mins*60000;S.hints=3;save();$('#ov').innerHTML='';sfx.alarm();render();break;
  case'sound':S.sound=!S.sound;save();b.textContent=S.sound?'Sound on':'Sound off';break;
  case'logo':if(++logoTaps>=5){logoTaps=0;overlay='pin';renderOverlay()}setTimeout(()=>logoTaps=0,3000);break;
  case'submit':if(locked()||!st)return;{const r=check(st);r===true?pass():deny(r)}break;
@@ -538,7 +630,7 @@ document.addEventListener('click',e=>{
  case't-hint':S.hints++;save();teacherHTML();break;
  case't-unlock':S.lockUntil=0;S.streak=0;save();teacherHTML();break;
  case't-skip':teacherOpen=false;pass();break;
- case't-reset':if(b.dataset.c){const keep={pin:S.pin,mins:S.mins,sound:S.sound,signoff:S.signoff};S=Object.assign(fresh(),keep);teacherOpen=false;overlay=null;ui={key:''};save();render()}else{b.dataset.c=1;b.textContent='Tap again to confirm reset'}break;
+ case't-reset':if(b.dataset.c){const keep={pin:S.pin,mins:S.mins,sound:S.sound,signoff:S.signoff};S=Object.assign(fresh(),keep);setTrack('mixed');teacherOpen=false;overlay=null;ui={key:''};save();render()}else{b.dataset.c=1;b.textContent='Tap again to confirm reset'}break;
  }
 });
 document.addEventListener('input',e=>{if(e.target.id==='shift'){ui.shift=+e.target.value;$('#shiftv').textContent=ui.shift;$('#wheel').innerHTML=wheelRows(ui.shift)}});
