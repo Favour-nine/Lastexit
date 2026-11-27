@@ -138,6 +138,12 @@ input.good{border-color:var(--ok)}input.bad{border-color:var(--red)}
 .big{font-family:var(--mono);font-size:clamp(48px,9vw,84px);color:var(--haz);line-height:1;margin:8px 0}
 .rules{padding-left:1.2em;margin:0 0 18px}
 .rules li{margin-bottom:6px}
+.lh{font-size:26px;margin:26px 0 10px}
+.checks{list-style:none;padding:0;margin:10px 0 16px;display:flex;flex-wrap:wrap;gap:8px 18px;color:var(--dim);font-size:15px}
+.checks li.y{color:var(--ok)}
+textarea{width:100%;max-width:760px;padding:10px 14px;background:#000;border:2px solid var(--line);color:var(--ok);font:17px/1.5 Barlow,sans-serif;border-radius:0}
+.sel{min-height:46px;padding:6px 10px;background:#000;color:var(--ink);border:2px solid var(--line);font:inherit;margin:0 6px}
+.rule{border:0;border-top:2px dashed var(--line);margin:34px 0 8px}
 .missions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .mission{text-align:left;padding:14px;border:2px solid var(--line);background:var(--p2);min-height:110px;display:grid;align-content:start;gap:6px}
 .mission b{font-family:var(--st);font-size:26px;font-weight:900;line-height:1}
@@ -340,7 +346,7 @@ let S;try{S=JSON.parse(localStorage.getItem(KEY))||fresh()}catch(e){S=fresh()}
 if(S.track)setTrack(S.track);
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
 let ui={key:''},overlay=null,teacherOpen=false,logoTaps=0;
-const remaining=()=>S.phase==='escaped'?S.doneRemain:S.paused?S.remain:S.endAt-Date.now();
+const remaining=()=>S.phase==='escaped'||S.phase==='lab'?S.doneRemain:S.paused?S.remain:S.endAt-Date.now();
 const fmt=ms=>{const neg=ms<0;ms=Math.abs(ms);const t=Math.floor(ms/1000),m=Math.floor(t/60),s=t%60;return(neg?'+':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')};
 
 /* ---------- SOUND ---------- */
@@ -370,7 +376,7 @@ function doorSVG(lit,cls=''){
  <g class="lampg">${lamps}</g>
  </svg>`;
 }
-const litArr=()=>[0,1,2,3,4].map(i=>i<S.room||(i===S.room&&S.roomDone)||S.phase==='final'||S.phase==='escaped');
+const litArr=()=>[0,1,2,3,4].map(i=>i<S.room||(i===S.room&&S.roomDone)||S.phase==='final'||S.phase==='escaped'||S.phase==='lab');
 
 /* ---------- RENDER ---------- */
 function render(){
@@ -393,7 +399,7 @@ function render(){
   </aside>
   <section class="box panel" id="stage"></section>
  </div>
- ${remaining()<300000&&S.phase!=='escaped'?'<div class="alarm-edge"></div>':''}`;
+ ${remaining()<300000&&S.phase!=='escaped'&&S.phase!=='lab'?'<div class="alarm-edge"></div>':''}`;
  renderStage();
  renderOverlay();
 }
@@ -401,6 +407,7 @@ function render(){
 function renderStage(){
  const el=$('#stage');if(!el)return;
  const vals={};el.querySelectorAll('input[id]').forEach(i=>vals[i.id]=i.type==='range'?i.value:i.value);
+ if(S.phase==='lab'){el.innerHTML=labHTML();return}
  if(S.phase==='final'||S.phase==='escaped'){el.innerHTML=finalHTML();restore(vals);return}
  if(S.roomDone){el.innerHTML=`<div class="crumbs"><span>Room ${S.room+1} of 5</span></div><h2>Lock ${S.room+1} disengaged</h2><p class="prompt">Stand by for the next room…</p>`;return}
  const R=ROOMS[S.room],st=R.stages[S.stage],key=S.room+'-'+S.stage;
@@ -586,9 +593,89 @@ function escapedHTML(){
  <div class="grid2"><div class="stat">Time ${r>=0?'remaining':'over'}<b>${fmt(r).replace('+','')}</b></div><div class="stat">Hints used<b>${S.hintsUsed}</b></div><div class="stat">Wrong attempts<b>${S.wrong}</b></div><div class="stat">Escape sequence<b>${CODES.join('-')}</b></div></div>
  <h3 style="font-size:26px;margin:22px 0 8px">Prove you cracked the system</h3>
  <p>Take your workbook to the supervisor. Explain <b>at least one maths calculation</b> and <b>one English correction</b> to complete your escape.</p>
+ <div class="actions"><button class="btn go" data-act="lab">Extended task: build your own cipher</button></div>
  <p style="color:var(--dim);font-size:15px">Supervisor: press Shift + T to reset for the next team.</p>
  </div></div></div>`;
 }
+
+/* ---------- CIPHER LAB ---------- */
+const LTYPES={shift:{label:'Shift cipher',desc:'Move every letter along the alphabet by a secret number.'},number:{label:'Number cipher',desc:'Turn letters into numbers (A = 1), then apply a secret maths rule.'},mirror:{label:'Mirror cipher',desc:'Flip the alphabet: A ↔ Z, B ↔ Y, C ↔ X…'}};
+const L=()=>S.lab||(S.lab={type:'',shift:4,op:'x',n:3,msg:'',clue:'',how:'',weak:'',ct:'',ctype:'shift',cshift:0,cop:'x',cn:2});
+const shiftCh=(c,k)=>c.replace(/[a-z]/gi,ch=>{const b=ch<='Z'?65:97;return String.fromCharCode((ch.charCodeAt(0)-b+k+260)%26+b)});
+const mirror=c=>c.replace(/[a-z]/gi,ch=>{const b=ch<='Z'?65:97;return String.fromCharCode(25-(ch.charCodeAt(0)-b)+b)});
+const opF=(op,n,v)=>op==='x'?v*n:v+n, opInv=(op,n,v)=>op==='x'?v/n:v-n;
+const ruleTxt=(op,n)=>op==='x'?`× ${n}`:`+ ${n}`;
+function encode(l){const m=l.msg||'';
+ if(l.type==='shift')return shiftCh(m,+l.shift);
+ if(l.type==='mirror')return mirror(m);
+ if(l.type==='number')return m.toUpperCase().split(/\s+/).filter(Boolean).map(w=>[...w].filter(c=>/[A-Z]/.test(c)).map(c=>opF(l.op,+l.n,c.charCodeAt(0)-64)).join(' ')).filter(Boolean).join(' / ');
+ return ''}
+function decode(l){const t=l.ct||'';
+ if(l.ctype==='shift')return shiftCh(t,-l.cshift);
+ if(l.ctype==='mirror')return mirror(t);
+ return t.split('/').map(w=>w.trim().split(/[\s,]+/).filter(Boolean).map(x=>{const v=opInv(l.cop,+l.cn,Number(x));return Number.isInteger(v)&&v>=1&&v<=26?String.fromCharCode(64+v):'?'}).join('')).join(' ')}
+function checks(m){m=(m||'').trim();return[['Starts with a capital letter',/^[A-Z]/.test(m)],['Ends with . ! or ?',/[.!?]$/.test(m)],['At least 6 words',m.split(/\s+/).filter(Boolean).length>=6],['Has no number digits (write numbers as words)',m.length>0&&!/\d/.test(m)]]}
+function keyRow(l){
+ if(l.type==='number')return `<tr><th>Letter</th>${[...AZ].map(c=>`<td>${c}</td>`).join('')}</tr><tr><th>Code</th>${[...AZ].map((c,i)=>`<td>${opF(l.op,+l.n,i+1)}</td>`).join('')}</tr>`;
+ const enc=l.type==='mirror'?mirror(AZ):shiftCh(AZ,+l.shift);
+ return `<tr><th>Real letter</th>${[...AZ].map(c=>`<td>${c}</td>`).join('')}</tr><tr><th>Code letter</th>${[...enc].map(c=>`<td>${c}</td>`).join('')}</tr>`}
+const keyTxt=l=>l.type==='shift'?`shift forward by ${l.shift}`:l.type==='number'?`A = 1, B = 2… then ${ruleTxt(l.op,l.n)}`:'mirror alphabet (A ↔ Z)';
+function cardTxt(full){const l=L();return['THE LAST EXIT: CIPHER CHALLENGE','Created by: '+(S.team||'Agent'),'Cipher type: '+(LTYPES[l.type]||{}).label,'Coded message: '+encode(l),'Clue to the key: '+l.clue,
+ ...(full?['','FOR THE SUPERVISOR','Key: '+keyTxt(l),'Real message: '+l.msg,'How to decode it: '+l.how,'How hard is it to crack? '+l.weak]:['','Can you crack it?'])].join('\n')}
+function labHTML(){const l=L(),ok=checks(l.msg),ready=l.type&&ok.every(c=>c[1])&&l.clue.trim()&&l.how.trim()&&l.weak.trim();
+ const opts=(name,vals,cur)=>vals.map(([v,t])=>`<option value="${v}" ${String(cur)===String(v)?'selected':''}>${t}</option>`).join('');
+ return `<div class="crumbs"><span>Extended task</span><span class="badge l">Cipher Lab</span></div>
+ <h2>Cipher Lab: build your own code</h2>
+ <p class="story">You escaped, but the facility needs a brand-new security code before it reopens. Design a cipher that the next team will have to crack.</p>
+ <h3 class="lh">1. Choose a cipher type</h3>
+ <div class="missions">${Object.entries(LTYPES).map(([k,t])=>`<button class="mission ${l.type===k?'on':''}" data-act="ltype" data-t="${k}"><b>${t.label}</b><span>${t.desc}</span></button>`).join('')}</div>
+ ${l.type?`
+ <h3 class="lh">2. Set your secret key</h3>
+ ${l.type==='shift'?`<div class="slider"><label for="l-shift">Shift each letter forward by</label><input type="range" id="l-shift" min="1" max="25" value="${l.shift}"><b id="l-shiftv">${l.shift}</b></div>`:''}
+ ${l.type==='number'?`<div class="inrow" style="flex-wrap:wrap">A = 1, B = 2 … then <select id="l-op" class="sel">${opts('op',[['x','multiply by'],['+','add']],l.op)}</select><select id="l-n" class="sel">${opts('n',[2,3,4,5,6,7,8,9,10].map(n=>[n,n]),l.n)}</select></div>`:''}
+ ${l.type==='mirror'?'<p class="prompt">No number needed: the alphabet is flipped. Your clue will need to hint at the idea of a mirror.</p>':''}
+ <div class="wheel"><table id="l-key">${keyRow(l)}</table></div>
+ <h3 class="lh">3. Write your secret message</h3>
+ <p class="prompt">Write one sentence for the next team, for example where to find the exit. Use full SPaG: the terminal checks it.</p>
+ <input type="text" id="l-msg" value="${esc(l.msg)}" placeholder="e.g. The exit key is hidden under the stairs." style="max-width:640px">
+ <ul class="checks" id="l-checks">${ok.map(c=>`<li class="${c[1]?'y':''}">${c[1]?'✓':'○'} ${c[0]}</li>`).join('')}</ul>
+ <div class="field"><label>Your coded message</label><div class="ctext" id="l-out" style="font-size:clamp(20px,3vw,30px);min-height:1.4em">${esc(encode(l))||'—'}</div></div>
+ <h3 class="lh">4. Write a clue to the key</h3>
+ <p class="prompt">Remember the frozen clock pointing to 3? Hide your key in a clue. Make it a maths question or a riddle.</p>
+ <input type="text" id="l-clue" value="${esc(l.clue)}" placeholder="e.g. The number of sides on a square." style="max-width:640px">
+ <h3 class="lh">5. Explain your cipher</h3>
+ <div class="fields" style="max-width:none">
+  <div class="field"><label for="l-how">In two sentences, explain how someone would decode your message.</label><textarea id="l-how" rows="3">${esc(l.how)}</textarea></div>
+  <div class="field"><label for="l-weak">Is your cipher easy or hard to crack? Explain why.</label><textarea id="l-weak" rows="3">${esc(l.weak)}</textarea></div>
+ </div>
+ <div class="actions"><button class="btn go" data-act="lcard" id="l-make" ${ready?'':'disabled'}>Create my cipher card</button><span class="fb" id="l-fb">${ready?'':'Complete every step to create your card.'}</span></div>
+ <div id="l-card">${S.labCard&&ready?cardHTML():''}</div>`:''}
+ <hr class="rule">
+ <h3 class="lh">Crack a classmate’s cipher</h3>
+ <p class="prompt">Paste the coded message a classmate sent you, pick the cipher type, then change the key until the message makes sense.</p>
+ <textarea id="c-ct" rows="2" placeholder="Paste coded message here">${esc(l.ct)}</textarea>
+ <div class="inrow" style="flex-wrap:wrap;margin:12px 0"><select id="c-type" class="sel">${opts('t',Object.entries(LTYPES).map(([k,t])=>[k,t.label]),l.ctype)}</select>
+  <span id="c-keywrap">${crackKey(l)}</span></div>
+ <div class="field"><label>Decoded</label><div class="ctext" id="c-out" style="font-size:clamp(20px,3vw,28px);color:var(--ok)">${esc(decode(l))||'—'}</div></div>
+ <div class="actions"><button class="btn ghost" data-act="results">Back to escape results</button></div>`}
+function crackKey(l){const o=(vals,cur)=>vals.map(v=>`<option value="${v[0]}" ${String(cur)===String(v[0])?'selected':''}>${v[1]}</option>`).join('');
+ if(l.ctype==='shift')return `<label class="slider" style="margin:0">Shift <input type="range" id="c-shift" min="0" max="25" value="${l.cshift}"><b id="c-shiftv">${l.cshift}</b></label>`;
+ if(l.ctype==='number')return `Rule used: <select id="c-op" class="sel">${o([['x','multiply by'],['+','add']],l.cop)}</select><select id="c-n" class="sel">${o([1,2,3,4,5,6,7,8,9,10].map(n=>[n,n]),l.cn)}</select>`;
+ return ''}
+function cardHTML(){return `<div class="note" style="max-width:640px;transform:none;font-size:17px;white-space:pre-wrap;margin-top:20px">${esc(cardTxt(false))}</div>
+ <div class="actions"><button class="btn" data-act="lcopy" data-f="0">Copy challenge for a classmate</button><button class="btn ghost" data-act="lcopy" data-f="1">Copy full card for my teacher</button><span class="fb ok" id="l-copied"></span></div>
+ <p style="color:var(--dim);font-size:15px">The classmate version hides your key and real message. The teacher version includes them, plus your explanations. You can also take a screenshot.</p>
+ <textarea id="l-copybox" rows="8" style="display:none"></textarea>`}
+function labInput(e){const id=e.target.id;if(!/^(l|c)-/.test(id))return;const l=L(),v=e.target.value;
+ const map={'l-shift':'shift','l-op':'op','l-n':'n','l-msg':'msg','l-clue':'clue','l-how':'how','l-weak':'weak','c-ct':'ct','c-type':'ctype','c-shift':'cshift','c-op':'cop','c-n':'cn'};
+ if(!map[id])return;l[map[id]]=v;save();
+ if(id==='c-type'){$('#c-keywrap').innerHTML=crackKey(l)}
+ if(id[0]==='c'){$('#c-out').textContent=decode(l)||'—';const sv=$('#c-shiftv');if(sv)sv.textContent=l.cshift;return}
+ const sv=$('#l-shiftv');if(sv)sv.textContent=l.shift;
+ $('#l-key').innerHTML=keyRow(l);$('#l-out').textContent=encode(l)||'—';
+ const ok=checks(l.msg);$('#l-checks').innerHTML=ok.map(c=>`<li class="${c[1]?'y':''}">${c[1]?'✓':'○'} ${c[0]}</li>`).join('');
+ const ready=ok.every(c=>c[1])&&l.clue.trim()&&l.how.trim()&&l.weak.trim();$('#l-make').disabled=!ready;$('#l-fb').textContent=ready?'':'Complete every step to create your card.';
+ if(!ready){S.labCard=false;$('#l-card').innerHTML=''}else if(S.labCard){$('#l-card').innerHTML=cardHTML()}}
 
 /* ---------- EVENTS ---------- */
 document.addEventListener('click',e=>{
@@ -597,6 +684,11 @@ document.addEventListener('click',e=>{
  const st=S.phase==='play'&&!S.roomDone?ROOMS[S.room].stages[S.stage]:null;
  switch(a){
  case'setupgo':S.team=$('#s-team').value.trim();S.mins=Math.max(5,Math.min(90,parseInt($('#s-mins').value)||45));S.pin=$('#s-pin').value.trim()||'1234';S.signoff=$('#s-sign').checked;S.sound=$('#s-snd').checked;S.phase='brief';save();render();break;
+ case'lab':S.phase='lab';save();render();window.scrollTo(0,0);break;
+ case'results':S.phase='escaped';save();render();break;
+ case'ltype':L().type=b.dataset.t;S.labCard=false;save();renderStage();break;
+ case'lcard':S.labCard=true;save();$('#l-card').innerHTML=cardHTML();$('#l-card').scrollIntoView({behavior:'smooth',block:'nearest'});sfx.unlock();break;
+ case'lcopy':{const t=cardTxt(b.dataset.f==='1'),done=()=>{$('#l-copied').textContent='Copied! Paste it into an email or message.'},fail=()=>{const x=$('#l-copybox');x.style.display='block';x.value=t;x.select();$('#l-copied').textContent='Press Ctrl + C to copy.'};try{navigator.clipboard.writeText(t).then(done,fail)}catch(e){fail()}}break;
  case'track':S.track=b.dataset.t;setTrack(S.track);save();showBrief();break;
  case'start':if(!S.track)return;S.phase='play';S.endAt=Date.now()+S.mins*60000;S.hints=3;save();$('#ov').innerHTML='';sfx.alarm();render();break;
  case'sound':S.sound=!S.sound;save();b.textContent=S.sound?'Sound on':'Sound off';break;
@@ -633,6 +725,7 @@ document.addEventListener('click',e=>{
  case't-reset':if(b.dataset.c){const keep={pin:S.pin,mins:S.mins,sound:S.sound,signoff:S.signoff};S=Object.assign(fresh(),keep);setTrack('mixed');teacherOpen=false;overlay=null;ui={key:''};save();render()}else{b.dataset.c=1;b.textContent='Tap again to confirm reset'}break;
  }
 });
+document.addEventListener('input',labInput);document.addEventListener('change',e=>{if(e.target.tagName==='SELECT')labInput(e)});
 document.addEventListener('input',e=>{if(e.target.id==='shift'){ui.shift=+e.target.value;$('#shiftv').textContent=ui.shift;$('#wheel').innerHTML=wheelRows(ui.shift)}});
 document.addEventListener('keydown',e=>{
  if(e.shiftKey&&(e.key==='T'||e.key==='t')&&!(e.target.tagName==='INPUT'&&e.target.id!=='t-pin')){e.preventDefault();if(S.phase!=='setup'&&S.phase!=='brief'&&!teacherOpen){overlay='pin';teacherOpen=false;renderOverlay()}}
